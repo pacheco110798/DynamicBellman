@@ -1,5 +1,7 @@
+import math
 import random
-
+import time
+from bisect import bisect_right
 import matplotlib.pyplot as plt
 
 ujobs = [
@@ -30,7 +32,7 @@ def generateJobs(n=8, max_time=18, max_weight=10, min_duration=1, max_duration=7
 SORTED_BY_FINISH_ASC = sorted(ujobs, key=lambda job: job[3])
 BAR_LIMIT = 40  # con más trabajos que esto se dibujan líneas delgadas en vez de barras con etiqueta
 
-def plotJobs(job, pofjob, jobs=SORTED_BY_FINISH_ASC, chosen=(), show=True):
+def plotJobs(jobs=SORTED_BY_FINISH_ASC, chosen=(), show=True, elapsed_ms=None, expected_brute=None):
     chosen = set(chosen)
     names = [job_data[0] for job_data in jobs]
     weights = [job_data[1] for job_data in jobs]
@@ -42,15 +44,13 @@ def plotJobs(job, pofjob, jobs=SORTED_BY_FINISH_ASC, chosen=(), show=True):
         for i, job_data in enumerate(reversed(jobs)):
             name, weight, start, finish = job_data
             color = plt.cm.viridis(weight / max_weight)
-            if name == job or name == pofjob:
-                color = "red"
             if name in chosen:
                 # Planificación óptima: con achurado y borde grueso
                 ax.barh(y=i, width=finish - start, left=start, color=color, edgecolor='black',
                         linewidth=2.5, hatch='//')
             else:
                 ax.barh(y=i, width=finish - start, left=start, color=color, edgecolor='black')
-            ax.text(start + (finish - start) / 2, i, name, ha='center', va='center', fontsize=10)
+            ax.text(start + (finish - start) / 2, i, f"{name} (w={weight})", ha='center', va='center', fontsize=10)
         ax.set_yticks(range(len(names)))
         ax.set_yticklabels(list(reversed(names)))
     else:
@@ -65,14 +65,7 @@ def plotJobs(job, pofjob, jobs=SORTED_BY_FINISH_ASC, chosen=(), show=True):
             ax.hlines(y=[i for i, _ in chosen_rows], xmin=[j[2] for _, j in chosen_rows],
                       xmax=[j[3] for _, j in chosen_rows], colors="black", linewidth=3, zorder=2,
                       label=f"Planificación óptima ({len(chosen_rows)} trabajos)")
-        # Trabajos resaltados encima, más gruesos y nombrados en la leyenda
-        for i, (name, weight, start, finish) in enumerate(rows):
-            if name == job or name == pofjob:
-                style = "red" if name == job else "orange"
-                label = f"{name} [{start}, {finish})" + (" (p)" if name == pofjob else "")
-                ax.hlines(y=i, xmin=start, xmax=finish, colors=style, linewidth=4, zorder=3, label=label)
-                ax.plot([start, finish], [i, i], "|", color=style, markersize=12, zorder=3)
-        if ax.get_legend_handles_labels()[0]:
+        if chosen_rows:
             ax.legend(loc="upper right")
         ax.set_ylim(-1, len(rows))
         ax.set_yticks([])
@@ -86,6 +79,10 @@ def plotJobs(job, pofjob, jobs=SORTED_BY_FINISH_ASC, chosen=(), show=True):
     if chosen:
         total = sum(job_data[1] for job_data in jobs if job_data[0] in chosen)
         title += f" — peso óptimo {total}"
+    if elapsed_ms is not None:
+        title += f" — ejecución {elapsed_ms:.1f} ms"
+    if expected_brute is not None:
+        title += f"\nfuerza bruta esperada ≈ {expected_brute}"
     ax.set_title(title)
     max_finish = max(18, max(job_data[3] for job_data in jobs))
     ax.set_xlim(0, max_finish + 1)
@@ -125,15 +122,39 @@ def findPOfJob(jobname, jobs=SORTED_BY_FINISH_ASC):
 
 
 def computeP(jobs=SORTED_BY_FINISH_ASC):
-    index = {job[0]: i + 1 for i, job in enumerate(jobs)}  # nombre -> posición 1..n
+    # p[j] = cuántos trabajos terminan antes de que empiece j (búsqueda binaria, O(n log n))
+    finishes = [job[3] for job in jobs]
     p = [0] * (len(jobs) + 1)
     for j in range(1, len(jobs) + 1):
-        pj = findPOfJob(jobs[j - 1][0], jobs)
-        p[j] = 0 if pj == -1 else index[pj]
+        p[j] = bisect_right(finishes, jobs[j - 1][2])
     return p
 
 
-def weightedSchedule(jobs=SORTED_BY_FINISH_ASC):
+def bruteForceCalls(p):
+    # Llamadas que haría la fuerza bruta: T(0) = 1, T(j) = 1 + T(p(j)) + T(j - 1)
+    T = [1] * len(p)
+    for j in range(1, len(p)):
+        T[j] = 1 + T[p[j]] + T[j - 1]
+    return T[-1]
+
+
+def formatLog10(value_log10, decimals=3):
+    # Muestra 10^value_log10 de forma legible, aunque sea demasiado grande para un float
+    if value_log10 < 6:
+        return f"{10 ** value_log10:,.{decimals}f}"
+    return f"{10 ** (value_log10 % 1):.1f}×10^{int(value_log10)}"
+
+
+def formatDuration(ms_log10):
+    # Pasa 10^ms_log10 milisegundos a la unidad más grande que quede >= 1 (ms, s, min, h o días)
+    units = (("días", 86_400_000), ("h", 3_600_000), ("min", 60_000), ("s", 1_000))
+    for unit, ms in units:
+        if ms_log10 >= math.log10(ms):
+            return f"{formatLog10(ms_log10 - math.log10(ms), 1)} {unit}"
+    return f"{formatLog10(ms_log10, 3 if ms_log10 < 0 else 1)} ms"
+
+
+def bestSchedule(jobs=SORTED_BY_FINISH_ASC):
     n = len(jobs)
     p = computeP(jobs)
 
@@ -220,7 +241,7 @@ def fitDepth(root, limit=TREE_NODE_LIMIT):
     return depth, len(counts) - 1
 
 
-def plotJobTree(root, max_depth=None, show=True, save_path=None):
+def plotJobTree(root, max_depth=None, show=True):
     total = countNodes(root)
     fit, full_depth = fitDepth(root)
     if max_depth is None:
@@ -293,25 +314,47 @@ def plotJobTree(root, max_depth=None, show=True, save_path=None):
                  "camino rojo = decisiones óptimas, +w = tomar trabajo, omitir = omitir trabajo")
     ax.axis("off")
     plt.tight_layout()
-    if save_path:
-        fig.savefig(save_path, dpi=150)
     if show:
         plt.show()
 
 
 if __name__ == "__main__":
+    # Se importa aquí para que jobs.py no dependa de compare_opt (y evitar importación circular)
+    from compare_opt import compare, plotComparison, printTable, runBruteForce, runMemoized
     jobs = ujobs
 
-    JOB = random.choice(jobs)[0]
-    LAST_JOB = jobs[-1][0]
-    P_OF_JOB = findPOfJob(LAST_JOB, jobs)
-    print(f"trabajo compatible para {LAST_JOB}: {P_OF_JOB}")
-
-    BEST, CHOSEN = weightedSchedule(jobs)
+    BEST, CHOSEN = bestSchedule(jobs)
     print(f"peso óptimo {BEST} usando {CHOSEN}")
-    plotJobs(JOB, P_OF_JOB, jobs, CHOSEN, show=False)
 
-    # Árbol de recursión de la ecuación de Bellman para los mismos trabajos, también se guarda como imagen
+    # OPT(n) por fuerza bruta y memoizado (se importa aquí para que jobs.py no dependa de compare_opt)
+    P = computeP(jobs)
+    for label, (value, calls, _) in (("fuerza bruta", runBruteForce(jobs, P)), ("memoizado", runMemoized(jobs, P))):
+        print(f"OPT({len(jobs)}) {label}: {value} en {calls} llamadas")
+    plotJobs(jobs, CHOSEN, show=False)
+
+    # Árbol de recursión de la ecuación de Bellman para los mismos trabajos
     ROOT = buildJobTree(jobs)
-    plotJobTree(ROOT, show=False, save_path="jobs_tree.png")
-    plt.show()  # abre ambas ventanas a la vez
+    plotJobTree(ROOT, show=False)
+
+    # Tiempo por llamada de la fuerza bruta, medido con un caso chico
+    SAMPLE = generateJobs(n=25, max_time=25, seed=0)
+    _, SAMPLE_CALLS, SAMPLE_SECONDS = runBruteForce(SAMPLE, computeP(SAMPLE))
+    MS_PER_CALL = SAMPLE_SECONDS * 1000 / SAMPLE_CALLS
+
+    # Casos con trabajos aleatorios de distintos tamaños
+    for n in (10, 100, 1000, 10_000, 100_000):
+        RANDOM_JOBS = generateJobs(n=n, max_time=max(18, n))
+        t0 = time.perf_counter()
+        BEST, CHOSEN = bestSchedule(RANDOM_JOBS)
+        ELAPSED_MS = (time.perf_counter() - t0) * 1000
+        BRUTE_LOG10 = math.log10(bruteForceCalls(computeP(RANDOM_JOBS)))
+        EXPECTED_BRUTE = formatDuration(BRUTE_LOG10 + math.log10(MS_PER_CALL))
+        print(f"n={n:>7,}: peso óptimo {BEST:,} con {len(CHOSEN):,} trabajos en {ELAPSED_MS:.1f}ms"
+              f" | fuerza bruta esperada: {formatLog10(BRUTE_LOG10, 0)} llamadas ≈ {EXPECTED_BRUTE}")
+        plotJobs(RANDOM_JOBS, CHOSEN, show=False, elapsed_ms=ELAPSED_MS, expected_brute=EXPECTED_BRUTE)
+
+    # Comparación de fuerza bruta vs memoizado para distintos tamaños n
+    ROWS = compare(list(range(5, 41, 5)) + [60, 80, 100, 200, 500, 1000], seed=0)
+    printTable(ROWS)
+    plotComparison(ROWS, show=False)
+    plt.show()  # abre todas las ventanas a la vez

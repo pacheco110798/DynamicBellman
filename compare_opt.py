@@ -1,3 +1,4 @@
+# Compara OPT(j) por fuerza bruta vs memoizado.
 import sys
 import time
 
@@ -13,27 +14,30 @@ BRUTE_CALL_LIMIT = 2_000_000  # una ejecución de fuerza bruta se aborta despué
 class TooManyCalls(Exception):
     pass
 
-
+# Fuerza bruta: recalcula todo cada vez.
 def optBruteForce(j, jobs, p, calls, limit=BRUTE_CALL_LIMIT):
     calls[0] += 1
     if calls[0] > limit:
         raise TooManyCalls
     if j == 0:
         return 0
+    # tomar el trabajo j o no tomarlo
     return max(jobs[j - 1][1] + optBruteForce(p[j], jobs, p, calls, limit),
                optBruteForce(j - 1, jobs, p, calls, limit))
 
 
+# Memoizado: guarda cada OPT(j) para no repetirlo.
 def optMemoized(j, jobs, p, memo, calls):
     calls[0] += 1
     if j == 0:
         return 0
     if memo[j] is None:
-        memo[j] = max(jobs[j - 1][1] + optMemoized(p[j], jobs, p, memo, calls),
-                      optMemoized(j - 1, jobs, p, memo, calls))
+        memo[j] = max(jobs[j - 1][1] + optMemoized(p[j], jobs, p, memo, calls),  # tomar j
+                      optMemoized(j - 1, jobs, p, memo, calls))  # no tomar j
     return memo[j]
 
 
+# Regresa (valor, llamadas, tiempo) o None si tardó demasiado.
 def runBruteForce(jobs, p, limit=BRUTE_CALL_LIMIT):
     calls = [0]
     t0 = time.perf_counter()
@@ -44,6 +48,7 @@ def runBruteForce(jobs, p, limit=BRUTE_CALL_LIMIT):
     return value, calls[0], time.perf_counter() - t0
 
 
+# Regresa (valor, llamadas, tiempo).
 def runMemoized(jobs, p):
     calls = [0]
     memo = [None] * (len(jobs) + 1)
@@ -52,6 +57,7 @@ def runMemoized(jobs, p):
     return value, calls[0], time.perf_counter() - t0
 
 
+# Corre ambos métodos para cada n.
 def compare(ns, seed=0, limit=BRUTE_CALL_LIMIT):
     rows = []
     brute_enabled = True
@@ -74,6 +80,7 @@ def compare(ns, seed=0, limit=BRUTE_CALL_LIMIT):
     return rows
 
 
+# Imprime la tabla de resultados.
 def printTable(rows):
     print(f"{'n':>5} | {'llam. bruta':>12} {'tiempo bruta':>12} | {'llam. memo':>10} {'tiem. memo':>10} | aceleración")
     print("-" * 72)
@@ -87,7 +94,8 @@ def printTable(rows):
         print(f"{n:>5} | {brute} | {m_calls:>10,} {m_time * 1000:>8.3f}ms | {speedup}")
 
 
-def plotComparison(rows, save_path=None, show=True):
+# Grafica llamadas y tiempo.
+def plotComparison(rows, show=True):
     ns = [r[0] for r in rows]
     brute = [r for r in rows if r[1] is not None]
 
@@ -118,8 +126,6 @@ def plotComparison(rows, save_path=None, show=True):
 
     fig.suptitle("OPT(j) = max(w_j + OPT(p(j)), OPT(j-1)): fuerza bruta es exponencial, memoizado es lineal")
     plt.tight_layout()
-    if save_path:
-        fig.savefig(save_path, dpi=150)
     if show:
         plt.show()
 
@@ -128,4 +134,4 @@ if __name__ == "__main__":
     NS = list(range(5, 41, 5)) + [60, 80, 100, 200, 500, 1000]
     ROWS = compare(NS, seed=0)
     printTable(ROWS)
-    plotComparison(ROWS, save_path="brute_vs_memo.png")
+    plotComparison(ROWS)

@@ -72,6 +72,7 @@
   h1 { font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -0.01em; }
   h2 { font-size: 20px; }
   p { margin: 0; max-width: 68ch; color: var(--ink-2); }
+  .author { font-size: 15px; font-weight: 600; color: var(--ink); }
   .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
   header { display: grid; gap: 12px; }
   .equation {
@@ -146,7 +147,6 @@
   .key { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--ink-2); }
   .key span { display: inline-flex; align-items: center; gap: 6px; }
   .dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--ink-2); display: inline-block; }
-  footer { font-size: 13px; color: var(--muted); }
   code { font-family: var(--mono); font-size: 0.92em; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   .tests-list { display: grid; gap: 2px; max-height: 360px; overflow: auto; font-size: 13px; }
@@ -159,21 +159,55 @@
   .badge.skipped { background: var(--grid); color: var(--muted); }
   .tests-list pre { font-family: var(--mono); font-size: 11px; white-space: pre-wrap; color: var(--ink-2); margin: 4px 0 8px; }
   .error-box { background: var(--brute-tint); border-radius: 6px; padding: 10px 14px; font-size: 13px; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+  .tabs button { background: transparent; color: var(--muted); border-radius: 6px 6px 0 0; padding: 8px 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 500; }
+  .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+  .tabpanel { display: grid; gap: 28px; }
+  .tabpanel[hidden] { display: none; }
+  .progress { height: 14px; background: var(--grid); border-radius: 99px; overflow: hidden; }
+  .progress i { display: block; height: 100%; width: 0; background: var(--brute); border-radius: 99px; transition: width 0.2s linear; }
+  .progress.done i { background: var(--memo); }
+  .exec-controls { display: flex; gap: 8px; align-items: center; }
+  .exec-controls input { width: 72px; }
+  .exec-head { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; justify-content: space-between; }
+  .exec-pct { font-family: var(--mono); font-size: 32px; font-variant-numeric: tabular-nums; }
+  .badge.pending { background: var(--grid); color: var(--muted); }
+  .badge.running { background: var(--brute-tint); color: var(--ink); }
+  .badge.done { background: color-mix(in srgb, var(--memo) 16%, transparent); color: var(--ink); }
+  .dp-wrap { max-height: 440px; overflow: auto; }
+  .dp-wrap thead th { position: sticky; top: 0; background: var(--surface); text-transform: none; font-size: 13px; }
+  .dp-wrap td.m { font-weight: 600; color: var(--ink); }
+  tr.trace td { background: color-mix(in srgb, var(--memo) 10%, transparent); }
+  td.win { color: var(--ink); font-weight: 500; }
+  td.lose { color: var(--muted); }
+  td .take { color: var(--memo); font-family: var(--sans); }
+  td .skip { color: var(--muted); font-family: var(--sans); }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <div class="eyebrow">Planificación de intervalos ponderados · FastAPI</div>
+    <div class="author">Andrea Georgina Rodriguez Pacheco</div>
+    <div class="eyebrow">Programación dinámica · Planificación de intervalos ponderados</div>
     <h1>Ecuación de Bellman para trabajos: OPT(j) por fuerza bruta vs memoizado</h1>
-    <p>Todos los números de esta página vienen del servidor en Python: <code>jobs.py</code> genera los trabajos, encuentra p(j) y la planificación óptima, <code>compare_opt.py</code> mide el tiempo de ambas recursiones y <code>test_jobs.py</code> las verifica. La fuerza bruta recalcula cada subproblema cada vez que aparece en el árbol de recursión; la versión memoizada guarda cada OPT(j) la primera vez y después solo lo consulta.</p>
     <div class="equation">OPT(j) = max( <span class="m">w<sub>j</sub> + OPT(p(j))</span>, <span class="b">OPT(j − 1)</span> ), &nbsp;OPT(0) = 0</div>
   </header>
 
+  <nav class="tabs" role="tablist" aria-label="Vistas">
+    <button type="button" role="tab" id="tab-btn-compare" aria-controls="tab-compare" aria-selected="true">Comparación</button>
+    <button type="button" role="tab" id="tab-btn-exec" aria-controls="tab-exec" aria-selected="false">Ejecución n = 45</button>
+    <button type="button" role="tab" id="tab-btn-tests" aria-controls="tab-tests" aria-selected="false">Pruebas</button>
+  </nav>
+
+  <div class="tabpanel" id="tab-compare" role="tabpanel" aria-labelledby="tab-btn-compare">
   <section class="controls" aria-label="Configuración">
     <div class="field">
       <label for="seed">Semilla</label>
       <input id="seed" type="number" value="0" min="0" step="1">
+    </div>
+    <div class="field">
+      <label for="n">n (trabajos)</label>
+      <input id="n" type="number" value="10" min="1" max="1000" step="1">
     </div>
     <div class="field">
       <label for="limit">Límite de llamadas de fuerza bruta</label>
@@ -184,59 +218,13 @@
       </select>
     </div>
     <button id="run" type="button">Ejecutar comparación</button>
-    <button id="reseed" class="ghost" type="button">Nuevos trabajos aleatorios</button>
+    <button id="reseed" class="ghost" type="button">Semilla aleatoria</button>
     <span class="status" id="status" role="status"></span>
   </section>
 
   <div class="error-box" id="error" hidden></div>
 
   <section class="summary" id="summary" aria-label="Resumen"></section>
-
-  <section class="charts">
-    <div class="panel">
-      <div class="panel-head">
-        <h2>Llamadas a OPT</h2>
-        <div class="seg" role="group" aria-label="Rango de x">
-          <button type="button" data-range="small" aria-pressed="true">n ≤ 60</button>
-          <button type="button" data-range="all" aria-pressed="false">n ≤ 1000</button>
-        </div>
-      </div>
-      <div class="legend">
-        <span><i class="sw" style="background:var(--brute)"></i>Fuerza bruta</span>
-        <span><i class="sw" style="background:var(--memo)"></i>Memoizado</span>
-      </div>
-      <div class="chart" id="chart-calls"></div>
-    </div>
-    <div class="panel">
-      <div class="panel-head">
-        <h2>Tiempo de ejecución</h2>
-        <span class="note">escala logarítmica, tiempo de Python por ejecución</span>
-      </div>
-      <div class="legend">
-        <span><i class="sw" style="background:var(--brute)"></i>Fuerza bruta</span>
-        <span><i class="sw" style="background:var(--memo)"></i>Memoizado</span>
-      </div>
-      <div class="chart" id="chart-time"></div>
-    </div>
-  </section>
-
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Resultados</h2>
-      <span class="note">Los números grises de fuerza bruta son el conteo exacto de llamadas de las ejecuciones que se detuvieron, y el tiempo que tardarían a la velocidad medida.</span>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>n</th><th>OPT(n)</th><th>Llamadas fuerza bruta</th><th>Tiempo fuerza bruta</th>
-            <th>Llamadas memo</th><th>Tiempo memo</th><th>Tiempo bruta ÷ memo</th><th></th>
-          </tr>
-        </thead>
-        <tbody id="rows"></tbody>
-      </table>
-    </div>
-  </section>
 
   <section class="panel">
     <div class="panel-head">
@@ -264,16 +252,112 @@
 
   <section class="panel">
     <div class="panel-head">
-      <h2>test_jobs.py</h2>
-      <button id="run-tests" type="button" class="ghost">Ejecutar pruebas</button>
+      <h2 id="dp-title">Tabla de programación dinámica M[j]</h2>
+      <div class="key">
+        <span><i class="sw" style="background:color-mix(in srgb, var(--memo) 30%, transparent);height:10px"></i>Recorrido de reconstrucción</span>
+      </div>
     </div>
-    <p class="note" id="tests-note">Ejecuta la suite de unittest en el servidor: p(j) y la planificación contra fuerza bruta sobre todos los subconjuntos, el árbol de recursión y el conteo de llamadas de fuerza bruta vs memoizado.</p>
-    <div class="tests-list" id="tests"></div>
+    <p class="note">Ordenada de mayor a menor tiempo de término. Cada fila se llena con valores de filas de más abajo, ya calculadas: M[j] = max(w<sub>j</sub> + M[p(j)], M[j − 1]). El valor que gana está resaltado.</p>
+    <div class="table-wrap dp-wrap">
+      <table>
+        <thead>
+          <tr><th>j</th><th>Trabajo</th><th>Intervalo</th><th>w<sub>j</sub></th><th>p(j)</th><th>Tomar: w<sub>j</sub> + M[p(j)]</th><th>Omitir: M[j − 1]</th><th>M[j]</th><th>Decisión</th></tr>
+        </thead>
+        <tbody id="dp-rows"></tbody>
+      </table>
+    </div>
   </section>
 
-  <footer>
-    Servido por <code>app.py</code> (FastAPI). <code>/api/compare</code> ejecuta <code>compare()</code> de <code>compare_opt.py</code>, <code>/api/jobs</code> devuelve los trabajos, p(j), OPT(j) y la planificación óptima de <code>jobs.py</code>, y <code>/api/tests</code> ejecuta <code>test_jobs.py</code>. Las semillas coinciden con Python: la semilla 0 aquí da los mismos trabajos que <code>generateJobs(n, max_time=max(18, n), seed=0)</code>. Los tiempos son una sola ejecución de Python medida con <code>time.perf_counter</code>, así que los muy pequeños tienen ruido.
-  </footer>
+  <section class="charts">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Tiempo de ejecución</h2>
+        <span class="note">tiempo medido por ejecución, escala logarítmica</span>
+      </div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--brute)"></i>Fuerza bruta</span>
+        <span><i class="sw" style="background:var(--memo)"></i>Memoizado</span>
+      </div>
+      <div class="chart" id="chart-time"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Llamadas a OPT</h2>
+        <div class="seg" role="group" aria-label="Rango de x">
+          <button type="button" data-range="small" aria-pressed="true">n ≤ 60</button>
+          <button type="button" data-range="all" aria-pressed="false">n ≤ 1000</button>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--brute)"></i>Fuerza bruta</span>
+        <span><i class="sw" style="background:var(--memo)"></i>Memoizado</span>
+      </div>
+      <div class="chart" id="chart-calls"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Resultados</h2>
+      <span class="note">Los números grises de fuerza bruta son el conteo exacto de llamadas de las ejecuciones que se detuvieron, y el tiempo que tardarían a la velocidad medida.</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>n</th><th>OPT(n)</th><th>Llamadas fuerza bruta</th><th>Tiempo fuerza bruta</th>
+            <th>Llamadas memo</th><th>Tiempo memo</th><th>Tiempo bruta ÷ memo</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  </div>
+
+  <div class="tabpanel" id="tab-exec" role="tabpanel" aria-labelledby="tab-btn-exec" hidden>
+    <section class="panel">
+      <div class="exec-head">
+        <h2 id="exec-title">Fuerza bruta de OPT(45)</h2>
+        <span class="badge pending" id="exec-status">sin ejecutar</span>
+        <div class="exec-controls">
+          <label for="exec-n">n</label>
+          <input id="exec-n" type="number" value="45" min="1" max="60" step="1">
+          <button id="exec-start" type="button">Ejecutar fuerza bruta</button>
+        </div>
+      </div>
+      <p class="note" id="exec-note">Recursión sin memoización para n trabajos (máximo 60: con n = 55 tarda cerca de un minuto y con 60 unos 3; no se puede cancelar). Solo puede haber una ejecución a la vez: el botón se desactiva hasta que termine.</p>
+      <div class="exec-pct" id="exec-pct">0 %</div>
+      <div class="progress" id="exec-bar" role="progressbar" aria-label="Progreso de la ejecución" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+    </section>
+
+    <section class="summary" id="exec-stats" aria-label="Progreso"></section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Llamadas a OPT en el tiempo</h2>
+        <span class="note">llamadas acumuladas</span>
+      </div>
+      <div class="chart" id="exec-chart"></div>
+    </section>
+
+    <section class="panel" id="exec-result" hidden>
+      <h2>Resultado</h2>
+      <p id="exec-result-text"></p>
+    </section>
+  </div>
+
+  <div class="tabpanel" id="tab-tests" role="tabpanel" aria-labelledby="tab-btn-tests" hidden>
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Verificación</h2>
+        <button id="run-tests" type="button" class="ghost">Ejecutar pruebas</button>
+      </div>
+      <p class="note" id="tests-note">Comprueba que la programación dinámica da el mismo óptimo que probar todos los subconjuntos compatibles, que p(j) es el último trabajo compatible, que la reconstrucción no traslapa trabajos y que la versión memoizada hace exactamente 2n + 1 llamadas.</p>
+      <div class="tests-list" id="tests"></div>
+    </section>
+  </div>
 </div>
 
 <script>
@@ -290,7 +374,7 @@
 
   function showError(e) {
     $("error").hidden = false;
-    $("error").textContent = `No se pudo conectar con el servidor: ${e.message}`;
+    $("error").textContent = `No se pudieron obtener los datos: ${e.message}`;
     $("status").textContent = "";
   }
 
@@ -299,13 +383,16 @@
   let range = "small";
   let selectedN = 10;
   let seed = 0;
+  let limit = 2000000;  // límite de la última ejecución
   let selected = null;  // respuesta de /api/jobs para selectedN
 
   async function run() {
     seed = Math.max(0, parseInt($("seed").value, 10) || 0);
     $("seed").value = seed;
-    const limit = parseInt($("limit").value, 10);
-    $("status").textContent = "Ejecutando compare_opt.compare() en el servidor…";
+    selectedN = Math.min(1000, Math.max(1, parseInt($("n").value, 10) || 1));
+    $("n").value = selectedN;
+    limit = parseInt($("limit").value, 10);
+    $("status").textContent = "Calculando…";
     $("run").disabled = true;
     try {
       const data = await getJSON(`/api/compare?seed=${seed}&limit=${limit}`);
@@ -315,9 +402,7 @@
         brute: r.bruteCalls == null ? null : { calls: r.bruteCalls, time: r.bruteMs },
         totalCalls: BigInt(r.totalCalls), estTime: r.estMs,
       }));
-      $("status").textContent = `Python terminó en ${fmtMs(data.elapsedMs)}`;
-      if (!rows.some((r) => r.n === selectedN)) selectedN = 10;
-      renderSummary();
+      $("status").textContent = `Terminó en ${fmtMs(data.elapsedMs)}`;
       renderCharts();
       renderTable();
       await loadSelected();
@@ -329,11 +414,11 @@
   }
 
   async function loadSelected() {
-    const data = await getJSON(`/api/jobs?n=${selectedN}&seed=${seed}`);
+    const data = await getJSON(`/api/jobs?n=${selectedN}&seed=${seed}&limit=${limit}`);
     selected = { ...data, cnt: data.callCounts.map(BigInt), chosen: new Set(data.chosen) };
-    const r = rows.find((row) => row.n === selectedN);
-    selected.totalCalls = r.totalCalls;
-    selected.memoCalls = r.memoCalls;
+    // n puede no estar en la tabla de comparación: se calcula con los datos de /api/jobs
+    selected.totalCalls = selected.cnt.reduce((a, b) => a + b, 0n);
+    selected.memoCalls = 2 * selectedN + 1;
     renderSelected();
   }
 
@@ -348,41 +433,38 @@
     const [mant, exp] = x.toExponential(2).split("e");
     return `${mant} × 10${sup(Number(exp))}`;
   }
+  // Cada tiempo se muestra en la unidad más grande que quede >= 1 (ms, s, min, h o días)
+  const UNITS = [["días", 86400000], ["h", 3600000], ["min", 60000], ["s", 1000], ["ms", 1]];
   function fmtMs(ms) {
     if (ms == null) return "—";
-    if (ms < 0.01) return (ms * 1000).toFixed(2) + " µs";
-    if (ms < 1) return (ms * 1000).toFixed(0) + " µs";
-    if (ms < 1000) return ms.toFixed(ms < 10 ? 2 : 0) + " ms";
-    const s = ms / 1000;
-    if (s < 120) return s.toFixed(1) + " s";
-    if (s < 7200) return (s / 60).toFixed(0) + " min";
-    if (s < 172800) return (s / 3600).toFixed(0) + " h";
-    const years = s / 31557600;
-    if (years < 1) return (s / 86400).toFixed(0) + " días";
-    return fmtBig(years) + " años";
+    if (ms === 0) return "0 ms";
+    const [unit, f] = UNITS.find(([, f]) => ms >= f) || UNITS[UNITS.length - 1];
+    const v = ms / f;
+    if (v >= 1e6) return `${fmtBig(v)} ${unit}`;
+    if (v >= 100) return `${nf.format(Math.round(v))} ${unit}`;
+    if (v >= 0.001) return `${Number(v.toPrecision(3))} ${unit}`;
+    const [mant, exp] = v.toExponential(2).split("e");
+    return `${mant} × 10${sup(Number(exp))} ${unit}`;
   }
   const sup = (e) => String(e).split("").map((c) => "⁰¹²³⁴⁵⁶⁷⁸⁹⁻"["0123456789-".indexOf(c)]).join("");
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
   // ---------- dibujo ----------
+  // Tarjetas del ejercicio actual (n y semilla elegidos)
   function renderSummary() {
-    const done = rows.filter((r) => r.brute);
-    const last = done[done.length - 1];
-    const firstStopped = rows.find((r) => !r.brute);
-    const big = rows[rows.length - 1];
-    const html = [];
-    if (last) {
-      html.push(stat(`Mayor n que terminó la fuerza bruta`, `n = ${last.n}`,
-        `${nf.format(last.brute.calls)} llamadas vs ${nf.format(last.memoCalls)} memoizado`));
-      html.push(stat(`Aceleración en n = ${last.n}`, `${nf.format(Math.round(last.brute.time / last.memoTime))}×`,
-        `${fmtMs(last.brute.time)} vs ${fmtMs(last.memoTime)}`));
-    }
-    if (firstStopped && big.estTime != null) {
-      html.push(stat(`Fuerza bruta en n = ${big.n}`, fmtMs(big.estTime),
-        `necesitaría ${fmtBig(big.totalCalls)} llamadas`));
-    }
-    html.push(stat(`Memoizado en n = ${big.n}`, fmtMs(big.memoTime),
-      `${nf.format(big.memoCalls)} llamadas, siempre 2n + 1`));
+    const { n, value, stats: st } = selected;
+    const brute = BigInt(st.bruteCalls);
+    const measured = st.bruteMs != null;
+    const bruteMs = measured ? st.bruteMs : st.estMs;
+    const html = [
+      stat(`Fuerza bruta en n = ${n}`, bruteMs == null ? "—" : (measured ? "" : "≈ ") + fmtMs(bruteMs),
+        `${fmtBig(brute)} llamadas${measured ? " (medido)" : " (estimado, pasa el límite)"}`),
+      stat(`Memoizado en n = ${n}`, fmtMs(st.memoMs), `${nf.format(st.memoCalls)} llamadas, siempre 2n + 1`),
+      stat(`Aceleración en n = ${n}`,
+        bruteMs == null || !st.memoMs ? "—" : (measured ? "" : "≈ ") + fmtBig(bruteMs / st.memoMs) + "×",
+        "tiempo fuerza bruta ÷ memoizado"),
+      stat("Ganancia", nf.format(value), `peso óptimo OPT(${n}) con ${selected.chosen.size} trabajos`),
+    ];
     $("summary").innerHTML = html.join("");
   }
   const stat = (k, v, d) => `<div class="stat"><span class="k">${k}</span><span class="v">${v}</span><span class="d">${d}</span></div>`;
@@ -400,12 +482,13 @@
       brute: (r) => r.brute ? r.brute.time : null,
       memo: (r) => r.memoTime,
       fmt: (v) => fmtMs(v),
+      tick: (v) => fmtMs(v),
       unit: "",
     });
   }
 
   function lineChart(el, data, xMax, acc) {
-    const W = 520, H = 280, m = { t: 14, r: 86, b: 34, l: 58 };
+    const W = 520, H = 280, m = { t: 14, r: 86, b: 34, l: 68 };
     const iw = W - m.l - m.r, ih = H - m.t - m.b;
     const vals = [];
     data.forEach((r) => { const b = acc.brute(r); if (b) vals.push(b); vals.push(acc.memo(r)); });
@@ -419,7 +502,7 @@
     for (let e = lo; e <= hi; e += step) {
       const yy = y(10 ** e);
       svg += `<line class="gridline" x1="${m.l}" x2="${m.l + iw}" y1="${yy}" y2="${yy}"/>`;
-      svg += `<text class="tick-label" x="${m.l - 8}" y="${yy + 4}" text-anchor="end">${e === 0 ? "1" : "10" + sup(e)}</text>`;
+      svg += `<text class="tick-label" x="${m.l - 8}" y="${yy + 4}" text-anchor="end">${acc.tick ? acc.tick(10 ** e) : e === 0 ? "1" : "10" + sup(e)}</text>`;
     }
     const xticks = xMax === 60 ? [0, 10, 20, 30, 40, 50, 60] : [0, 200, 400, 600, 800, 1000];
     xticks.forEach((t) => {
@@ -488,7 +571,32 @@
     const r = selected;
     $("timeline-title").textContent = `Trabajos para n = ${r.n}: peso óptimo ${r.value} usando ${r.chosen.size} trabajos`;
     renderTimeline(r);
+    renderDPTable(r);
     renderTree(r);
+    renderSummary();
+  }
+
+  function renderDPTable(r) {
+    const { jobs, p, M } = r;
+    // Recorrido hacia atrás desde M[n], igual que bestSchedule
+    const trace = new Set();
+    for (let j = jobs.length; j > 0;) {
+      trace.add(j);
+      j = jobs[j - 1].weight + M[p[j]] >= M[j - 1] ? p[j] : j - 1;
+    }
+    $("dp-title").textContent = `Tabla de programación dinámica M[j] para n = ${jobs.length}`;
+    const zero = `<tr><td>0</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="m">0</td><td>caso base</td></tr>`;
+    // Filas de mayor a menor tiempo de término: j = n arriba y el caso base M[0] al final
+    const rows = jobs.map((job, i) => {
+      const j = i + 1;
+      const take = job.weight + M[p[j]], skip = M[j - 1], took = take >= skip;
+      const decision = took ? `<span class="take">tomar</span>` : `<span class="skip">omitir</span>`;
+      return `<tr class="${trace.has(j) ? "trace" : ""}"><td>${j}</td><td>${job.name}</td><td>[${job.start}, ${job.finish})</td><td>${job.weight}</td><td>${p[j]}</td>
+        <td class="${took ? "win" : "lose"}">${job.weight} + ${M[p[j]]} = ${take}</td><td class="${took ? "lose" : "win"}">${skip}</td>
+        <td class="m">${M[j]}</td><td>${decision}</td></tr>`;
+    });
+    $("dp-rows").innerHTML = rows.reverse().join("") + zero;
+    $("dp-rows").closest(".dp-wrap").scrollTop = 0;  // mostrar siempre j = n primero
   }
 
   function renderTimeline(r) {
@@ -598,7 +706,7 @@
 
   async function runTests() {
     $("run-tests").disabled = true;
-    $("tests-note").textContent = "Ejecutando test_jobs.py en el servidor…";
+    $("tests-note").textContent = "Ejecutando pruebas…";
     $("tests").innerHTML = "";
     try {
       const t = await getJSON("/api/tests", { method: "POST" });
@@ -609,7 +717,7 @@
       const STATUS = { passed: "aprobada", failed: "fallida", error: "error", skipped: "omitida" };
       $("tests").innerHTML = [...t.tests].sort((a, b) => order[a.status] - order[b.status]).map((e) => `
         <div>
-          <div class="t"><span class="badge ${e.status}">${STATUS[e.status]}</span><code>${esc(e.name)}</code><span class="cls">${esc(e.class)}</span></div>
+          <div class="t"><span class="badge ${e.status}">${STATUS[e.status]}</span><span>${esc(e.title)}</span><span class="cls">${esc(e.group)}</span></div>
           ${e.status === "failed" || e.status === "error" ? `<pre>${esc(e.detail)}</pre>` : ""}
         </div>`).join("");
     } catch (e) {
@@ -621,13 +729,12 @@
 
   // ---------- eventos ----------
   $("run").addEventListener("click", run);
+  // Cambiar semilla, n o límite no calcula nada: solo el botón "Ejecutar comparación"
   $("reseed").addEventListener("click", () => {
     $("seed").value = Math.floor(Math.random() * 100000);
-    run();
   });
-  $("seed").addEventListener("change", run);
-  $("limit").addEventListener("change", run);
   $("run-tests").addEventListener("click", runTests);
+  $("exec-start").addEventListener("click", startExecution);
   document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => {
     range = b.dataset.range;
     document.querySelectorAll(".seg button").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
@@ -637,9 +744,138 @@
     const b = ev.target.closest("button[data-n]");
     if (!b) return;
     selectedN = +b.dataset.n;
+    $("n").value = selectedN;
     renderTable();
     try { await loadSelected(); } catch (e) { showError(e); }
   });
+
+  // ---------- pestaña de ejecución ----------
+  const EXEC_STATUS = { idle: "sin ejecutar", pending: "iniciando", running: "ejecutando", done: "terminada", error: "error" };
+  const execBusy = (status) => status === "pending" || status === "running";
+
+  async function startExecution() {
+    $("exec-start").disabled = true;  // evita varios clics mientras llega la respuesta
+    const input = $("exec-n");
+    const n = Math.min(+input.max, Math.max(1, parseInt(input.value, 10) || 1));
+    input.value = n;
+    try {
+      const res = await fetch(`/api/execution/start?n=${n}`, { method: "POST" });
+      if (res.status === 409) $("exec-note").textContent = "Ya hay una ejecución en curso; espera a que termine.";
+      else if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      $("exec-note").textContent = `No se pudo iniciar: ${err.message}`;
+    }
+    pollExecution();
+  }
+  let execTimer = null;
+
+  const TABS = { compare: "#", exec: "#ejecucion", tests: "#pruebas" };  // pestaña -> hash de la URL
+  let currentTab = "compare";
+
+  function showTab(name) {
+    currentTab = name;
+    for (const t of Object.keys(TABS)) {
+      $(`tab-${t}`).hidden = t !== name;
+      $(`tab-btn-${t}`).setAttribute("aria-selected", String(t === name));
+    }
+    history.replaceState(null, "", TABS[name]);
+    if (name === "exec") pollExecution(); else clearTimeout(execTimer);
+  }
+
+  async function pollExecution() {
+    clearTimeout(execTimer);
+    let e;
+    try {
+      e = await getJSON("/api/execution");
+    } catch (err) {
+      $("exec-note").textContent = `No se pudo leer el progreso: ${err.message}`;
+      execTimer = setTimeout(pollExecution, 1000);
+      return;
+    }
+    renderExecution(e);
+    if ((e.status === "pending" || e.status === "running") && !$("tab-exec").hidden) {
+      execTimer = setTimeout(pollExecution, 200);
+    }
+  }
+
+  function renderExecution(e) {
+    const frac = e.total ? e.calls / e.total : 0;
+    const pct = e.status === "done" ? 100 : Math.min(99.9, frac * 100);
+    $("exec-title").textContent = `Fuerza bruta de OPT(${e.n})`;
+    $("tab-btn-exec").textContent = `Ejecución n = ${e.n}`;
+    const badge = $("exec-status");
+    badge.className = `badge ${e.status === "idle" ? "pending" : e.status}`;
+    $("exec-start").disabled = execBusy(e.status);
+    $("exec-n").disabled = execBusy(e.status);
+    $("exec-n").max = e.maxN;
+    if (execBusy(e.status)) $("exec-n").value = e.n;
+    $("exec-start").textContent = e.status === "idle" ? "Ejecutar fuerza bruta" : execBusy(e.status) ? "Ejecutando…" : "Ejecutar de nuevo";
+    badge.textContent = EXEC_STATUS[e.status] ?? e.status;
+    $("exec-pct").textContent = `${pct.toFixed(pct < 10 ? 1 : 0)} %`;
+    $("exec-bar").querySelector("i").style.width = pct + "%";
+    $("exec-bar").setAttribute("aria-valuenow", pct.toFixed(0));
+    $("exec-bar").classList.toggle("done", e.status === "done");
+
+    const elapsedMs = (e.elapsed ?? 0) * 1000;
+    const rate = elapsedMs > 0 ? e.calls / (elapsedMs / 1000) : null;
+    const remaining = e.status === "running" && rate ? ((e.total - e.calls) / rate) * 1000 : null;
+    const started = e.startedAt ? new Date(e.startedAt * 1000).toLocaleTimeString("es-MX") : "—";
+    $("exec-stats").innerHTML = [
+      stat("Llamadas hechas", nf.format(e.calls), e.total ? `de ${nf.format(e.total)} (conteo exacto)` : "calculando el total…"),
+      stat("Tiempo transcurrido", fmtMs(elapsedMs), `inició a las ${started}`),
+      stat("Velocidad", rate ? `${fmtBig(rate)}/s` : "—", "llamadas a OPT por segundo"),
+      stat(e.status === "done" ? "Tiempo restante" : "Tiempo restante estimado",
+           e.status === "done" ? "0 ms" : fmtMs(remaining), `semilla ${e.seed}, ${e.n} trabajos`),
+    ].join("");
+
+    $("exec-result").hidden = !(e.status === "done" || e.status === "error");
+    if (e.status === "done") {
+      $("exec-result-text").innerHTML = `OPT(${e.n}) = <b>${e.value}</b>, usando ${e.chosen.length} trabajos: <code>${e.chosen.map(esc).join(", ")}</code>. `
+        + `La versión memoizada llega al mismo valor con ${nf.format(2 * e.n + 1)} llamadas.`;
+    } else if (e.status === "error") {
+      $("exec-result-text").textContent = `La ejecución falló: ${e.error}`;
+    }
+    execChart(e);
+  }
+
+  function execChart(e) {
+    const el = $("exec-chart");
+    const pts = e.samples;
+    if (!pts.length || !e.total) { el.innerHTML = `<p class="note">Esperando la primera muestra…</p>`; return; }
+    const W = 1040, H = 260, m = { t: 14, r: 20, b: 34, l: 86 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const tMax = Math.max(pts[pts.length - 1][0], 0.001);
+    const x = (t) => m.l + (t / tMax) * iw;
+    const y = (c) => m.t + ih - (c / e.total) * ih;
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Llamadas hechas contra el tiempo">`;
+    [0, 0.25, 0.5, 0.75, 1].forEach((f) => {
+      const yy = y(f * e.total);
+      svg += `<line class="gridline" x1="${m.l}" x2="${m.l + iw}" y1="${yy}" y2="${yy}"/>`;
+      svg += `<text class="tick-label" x="${m.l - 8}" y="${yy + 4}" text-anchor="end">${fmtBig(f * e.total)}</text>`;
+    });
+    for (let i = 0; i <= 5; i++) {
+      const t = (tMax * i) / 5;
+      svg += `<text class="tick-label" x="${x(t)}" y="${m.t + ih + 20}" text-anchor="middle">${i === 0 ? "0" : fmtMs(t * 1000)}</text>`;
+    }
+    svg += `<line class="baseline" x1="${m.l}" x2="${m.l + iw}" y1="${m.t + ih}" y2="${m.t + ih}"/>`;
+    const color = e.status === "done" ? "var(--memo)" : "var(--brute)";
+    svg += `<polyline fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" points="${pts.map(([t, c]) => `${x(t)},${y(c)}`).join(" ")}"/>`;
+    const [lt, lc] = pts[pts.length - 1];
+    svg += `<circle cx="${x(lt)}" cy="${y(lc)}" r="4" fill="${color}" stroke="var(--surface)" stroke-width="1.5"/>`;
+    svg += `</svg>`;
+    el.innerHTML = svg;
+  }
+
+  for (const t of Object.keys(TABS)) $(`tab-btn-${t}`).addEventListener("click", () => showTab(t));
+  document.querySelector(".tabs").addEventListener("keydown", (ev) => {
+    if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
+    const names = Object.keys(TABS);
+    const next = names[(names.indexOf(currentTab) + (ev.key === "ArrowRight" ? 1 : names.length - 1)) % names.length];
+    showTab(next);
+    $(`tab-btn-${next}`).focus();
+  });
+  const fromHash = Object.keys(TABS).find((t) => TABS[t] === location.hash && t !== "compare");
+  if (fromHash) showTab(fromHash);
 
   run();
 })();
